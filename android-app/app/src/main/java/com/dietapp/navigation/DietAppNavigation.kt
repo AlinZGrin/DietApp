@@ -87,9 +87,16 @@ fun DietAppNavigation() {
 
         // Food Logging
         composable("food_logging") {
-            SimpleFoodLoggingScreen(
+            FoodLoggingScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToFoodSearch = { mealType ->
+                    // TODO: Implement food search navigation
+                    navController.navigate("food_search/$mealType")
+                },
+                onNavigateToBarCodeScanner = {
+                    navController.navigate("barcode_scanner")
                 }
             )
         }

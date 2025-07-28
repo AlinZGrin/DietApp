@@ -133,6 +133,41 @@ class FoodRepository @Inject constructor(
         }
     }
 
+    suspend fun updateFoodLog(foodLog: FoodLog) {
+        try {
+            // Update in Firebase
+            val querySnapshot = firestore.collection("foodLogs")
+                .whereEqualTo("userId", foodLog.userId)
+                .whereEqualTo("foodId", foodLog.foodId)
+                .whereEqualTo("date", foodLog.date)
+                .whereEqualTo("createdAt", foodLog.createdAt)
+                .get()
+                .await()
+
+            if (querySnapshot.documents.isNotEmpty()) {
+                val document = querySnapshot.documents.first()
+                val updateData = hashMapOf(
+                    "quantity" to foodLog.quantity,
+                    "unit" to foodLog.unit,
+                    "mealType" to foodLog.mealType,
+                    "calories" to foodLog.calories,
+                    "protein" to foodLog.protein,
+                    "carbs" to foodLog.carbs,
+                    "fat" to foodLog.fat
+                )
+                document.reference.update(updateData as Map<String, Any>).await()
+                println("DEBUG FoodRepository: Updated food log in Firebase")
+            }
+
+            // Also update in local database
+            foodLogDao.updateFoodLog(foodLog)
+        } catch (e: Exception) {
+            println("DEBUG FoodRepository: Error updating food log in Firebase: ${e.message}")
+            // Fallback to local database only
+            foodLogDao.updateFoodLog(foodLog)
+        }
+    }
+
     fun getFoodLogsInRange(userId: String, startDate: Date, endDate: Date): Flow<List<FoodLog>> = callbackFlow {
         val listener = firestore.collection("foodLogs")
             .whereEqualTo("userId", userId)
