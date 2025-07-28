@@ -128,15 +128,6 @@ fun DashboardScreen(
                 )
             }
 
-            // Debug button to check goals
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { viewModel.checkGoals() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("DEBUG: Check Goals (see logcat)")
-            }
-
             // Sign out button
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(

@@ -108,8 +108,6 @@ class DashboardViewModel @Inject constructor(
                         weightTrend = weightTrend,
                         motivationalTip = motivationalTip
                     )
-
-                    println("DEBUG DashboardViewModel: Updated dashboard with ${foodLogs.size} food logs, total calories: $totalCalories")
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -197,24 +195,6 @@ class DashboardViewModel @Inject constructor(
         val userId = authRepository.getCurrentUserId()
         if (userId != null) {
             loadDashboardData(userId)
-        }
-    }
-
-    fun checkGoals() {
-        val userId = authRepository.getCurrentUserId()
-        if (userId != null) {
-            viewModelScope.launch {
-                try {
-                    goalRepository.getAllGoals(userId).collect { goals ->
-                        println("DEBUG Dashboard: Found ${goals.size} goals for user $userId")
-                        goals.forEach { goal ->
-                            println("DEBUG Dashboard: Goal ID ${goal.id}, type: ${goal.goalType}, active: ${goal.isActive}")
-                        }
-                    }
-                } catch (e: Exception) {
-                    println("DEBUG Dashboard: Error checking goals: ${e.message}")
-                }
-            }
         }
     }
 

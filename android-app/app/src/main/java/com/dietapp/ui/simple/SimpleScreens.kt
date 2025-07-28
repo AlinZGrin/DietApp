@@ -1,12 +1,14 @@
 package com.dietapp.ui.simple
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -373,8 +375,15 @@ private fun SettingsItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SimpleChartsScreen(
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    viewModel: com.dietapp.ui.viewmodels.ChartsViewModel = hiltViewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadChartData()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -387,47 +396,354 @@ fun SimpleChartsScreen(
             )
         }
     ) { paddingValues ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Time Period Selector
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val periods = listOf("Week", "Month", "3 Months", "Year")
+                    periods.forEach { period ->
+                        FilterChip(
+                            onClick = { viewModel.updateTimePeriod(period) },
+                            label = { Text(period) },
+                            selected = uiState.selectedTimePeriod == period,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Loading State
+            if (uiState.isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            }
+
+            // Error State
+            uiState.error?.let { error ->
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Text(
+                            text = error,
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+
+            // Weight Progress Chart
+            item {
+                WeightProgressCard(
+                    weightData = uiState.weightData,
+                    weightChange = uiState.weightChange,
+                    timePeriod = uiState.selectedTimePeriod
+                )
+            }
+
+            // Calorie Intake Chart
+            item {
+                CalorieIntakeCard(
+                    calorieData = uiState.calorieData,
+                    averageCalories = uiState.averageCalories,
+                    timePeriod = uiState.selectedTimePeriod
+                )
+            }
+
+            // Nutrition Breakdown
+            item {
+                NutritionBreakdownCard(
+                    nutritionBreakdown = uiState.nutritionBreakdown,
+                    averageProtein = uiState.averageProtein,
+                    averageCarbs = uiState.averageCarbs,
+                    averageFat = uiState.averageFat
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeightProgressCard(
+    weightData: List<Pair<String, Float>>,
+    weightChange: Float,
+    timePeriod: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "Charts & Analytics",
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center
+                text = "Weight Progress ($timePeriod)",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (weightData.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No weight data available\nAdd weight entries in Progress Tracking",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                // Weight Change Summary
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Latest: ${weightData.lastOrNull()?.second?.let { "%.1f kg".format(it) } ?: "N/A"}",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Change: ${if (weightChange >= 0) "+" else ""}%.1f kg".format(weightChange),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = when {
+                                weightChange > 0 -> MaterialTheme.colorScheme.error
+                                weightChange < 0 -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+
+                    Icon(
+                        imageVector = when {
+                            weightChange > 0.1 -> Icons.Default.TrendingUp
+                            weightChange < -0.1 -> Icons.Default.TrendingDown
+                            else -> Icons.Default.TrendingFlat
+                        },
+                        contentDescription = null,
+                        tint = when {
+                            weightChange > 0 -> MaterialTheme.colorScheme.error
+                            weightChange < 0 -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Simple data visualization
+                Column {
+                    Text(
+                        text = "Data Points:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    weightData.takeLast(5).forEach { (date, weight) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = date,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = "%.1f kg".format(weight),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalorieIntakeCard(
+    calorieData: List<Pair<String, Float>>,
+    averageCalories: Float,
+    timePeriod: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Calorie Intake ($timePeriod)",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (calorieData.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No calorie data available\nLog some foods to see your intake",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                // Average Calories
+                Text(
+                    text = "Average: ${averageCalories.toInt()} kcal/day",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Recent data
+                Column {
+                    Text(
+                        text = "Recent Days:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    calorieData.takeLast(5).forEach { (date, calories) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = date,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = "${calories.toInt()} kcal",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NutritionBreakdownCard(
+    nutritionBreakdown: Map<String, Float>,
+    averageProtein: Float,
+    averageCarbs: Float,
+    averageFat: Float
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Nutrition Breakdown",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = "This feature is connected to Firebase with real data from your food logs and weight entries. Charts will show your progress over time.",
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            if (nutritionBreakdown.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Available Charts:",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "No nutrition data available\nLog some foods to see breakdown",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("• Weight Progress Over Time")
-                    Text("• Daily Calorie Intake")
-                    Text("• Macro Distribution")
-                    Text("• Goal Achievement Tracking")
                 }
+            } else {
+                // Macro percentages
+                nutritionBreakdown.forEach { (macro, percentage) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = macro,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "${percentage.toInt()}%",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+
+                    LinearProgressIndicator(
+                        progress = percentage / 100f,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        color = when (macro) {
+                            "Protein" -> MaterialTheme.colorScheme.primary
+                            "Carbs" -> MaterialTheme.colorScheme.secondary
+                            "Fat" -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.primary
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Average grams
+                Text(
+                    text = "Daily Averages:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Protein: ${averageProtein.toInt()}g • Carbs: ${averageCarbs.toInt()}g • Fat: ${averageFat.toInt()}g",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

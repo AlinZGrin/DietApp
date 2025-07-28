@@ -17,37 +17,57 @@ class GoalRepository @Inject constructor(
     private val goalDao: GoalDao,
     private val firestore: FirebaseFirestore
 ) {
-    // Get current active goal from Firebase with local fallback
-    fun getCurrentGoal(userId: String): Flow<Goal?> = callbackFlow {
+    // Simple goal retrieval that bypasses complex object construction
+    fun getSimpleGoal(userId: String): Flow<Goal?> = callbackFlow {
         val listener = firestore.collection("goals")
             .whereEqualTo("userId", userId)
             .whereEqualTo("isActive", true)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .limit(1)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("DEBUG GoalRepository: Error getting current goal from Firebase: ${error.message}")
-                    // Fallback to local database
-                    close(error)
+                    // Keep error logging for troubleshooting
+                    println("GoalRepository: Error getting goal: ${error.message}")
+                    trySend(null)
                     return@addSnapshotListener
                 }
 
-                val goals = snapshot?.documents?.mapNotNull { doc ->
+                val activeGoal = snapshot?.documents?.firstOrNull()?.let { doc ->
                     try {
-                        doc.toObject(Goal::class.java)?.copy(id = doc.id.hashCode().toLong())
+                        val targetWeight = doc.getDouble("targetWeight")
+                        val userId = doc.getString("userId")
+
+                        if (targetWeight != null && userId != null) {
+                            Goal(
+                                id = doc.id.hashCode().toLong(),
+                                userId = userId,
+                                goalType = doc.getString("goalType") ?: "weight_loss",
+                                targetWeight = targetWeight,
+                                targetCalories = doc.getDouble("targetCalories") ?: 2000.0,
+                                targetProtein = doc.getDouble("targetProtein") ?: 150.0,
+                                targetCarbs = doc.getDouble("targetCarbs") ?: 200.0,
+                                targetFat = doc.getDouble("targetFat") ?: 67.0,
+                                targetDate = null,
+                                weeklyWeightLossGoal = doc.getDouble("weeklyWeightLossGoal") ?: 0.0,
+                                activityLevel = doc.getString("activityLevel") ?: "moderate",
+                                currentHeight = doc.getDouble("currentHeight"),
+                                useImperialUnits = doc.getBoolean("useImperialUnits") ?: false,
+                                isActive = true, // We already filtered for this
+                                createdAt = Date(),
+                                updatedAt = Date()
+                            )
+                        } else null
                     } catch (e: Exception) {
-                        println("DEBUG GoalRepository: Error parsing goal document: ${e.message}")
+                        println("GoalRepository: Error constructing goal: ${e.message}")
                         null
                     }
-                } ?: emptyList()
+                }
 
-                trySend(goals.firstOrNull())
+                trySend(activeGoal)
             }
 
-        awaitClose { listener.remove() }
-    }
-
-    // Get all goals from Firebase with local fallback
+        awaitClose {
+            listener.remove()
+        }
+    }    // Get all goals from Firebase with local fallback
     fun getAllGoals(userId: String): Flow<List<Goal>> = callbackFlow {
         val listener = firestore.collection("goals")
             .whereEqualTo("userId", userId)
@@ -75,9 +95,6 @@ class GoalRepository @Inject constructor(
     }
 
     suspend fun createNewGoal(goal: Goal): Long {
-        println("DEBUG GoalRepository: Creating new goal for user ${goal.userId}")
-        println("DEBUG GoalRepository: Goal details - type: ${goal.goalType}, targetWeight: ${goal.targetWeight}, calories: ${goal.targetCalories}")
-
         try {
             // First, deactivate all previous goals in Firebase
             deactivateAllGoals(goal.userId)
@@ -103,21 +120,18 @@ class GoalRepository @Inject constructor(
 
             // Save to Firebase Firestore
             val documentReference = firestore.collection("goals").add(goalData).await()
-            println("DEBUG GoalRepository: Saved goal to Firebase with ID: ${documentReference.id}")
 
             // Also save to local database for offline access
             goalDao.deactivateAllGoals(goal.userId)
             val localId = goalDao.insertGoal(goal)
-            println("DEBUG GoalRepository: Saved goal to local database with ID: $localId")
 
             return localId
 
         } catch (e: Exception) {
-            println("DEBUG GoalRepository: Error saving goal to Firebase: ${e.message}")
+            println("GoalRepository: Error saving goal to Firebase: ${e.message}")
             // Fallback to local database only
             goalDao.deactivateAllGoals(goal.userId)
             val result = goalDao.insertGoal(goal)
-            println("DEBUG GoalRepository: Fallback - saved goal to local database with ID: $result")
             return result
         }
     }
