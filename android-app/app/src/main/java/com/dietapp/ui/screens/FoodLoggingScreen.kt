@@ -31,9 +31,25 @@ fun FoodLoggingScreen(
     onNavigateBack: () -> Unit = {},
     onNavigateToFoodSearch: (String) -> Unit = {},
     onNavigateToBarCodeScanner: () -> Unit = {},
+    savedStateHandle: androidx.lifecycle.SavedStateHandle? = null,
     viewModel: FoodLoggingViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Handle food selection result
+    LaunchedEffect(savedStateHandle) {
+        savedStateHandle?.let { handle ->
+            val selectedFood = handle.get<com.dietapp.data.entities.Food>("selected_food")
+            val selectedMealType = handle.get<String>("selected_meal_type")
+
+            if (selectedFood != null && selectedMealType != null) {
+                viewModel.addFoodToLog(selectedFood, selectedMealType)
+                // Clear the result to prevent re-adding
+                handle.remove<com.dietapp.data.entities.Food>("selected_food")
+                handle.remove<String>("selected_meal_type")
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -89,7 +105,7 @@ fun FoodLoggingScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val mealTypes = listOf("Breakfast", "Lunch", "Dinner", "Snack")
-                    
+
                     items(mealTypes) { mealType ->
                         MealSection(
                             mealType = mealType,
@@ -109,7 +125,7 @@ fun FoodLoggingScreen(
         AlertDialog(
             onDismissRequest = { viewModel.hideAddFoodDialog() },
             confirmButton = {
-                TextButton(onClick = { 
+                TextButton(onClick = {
                     viewModel.hideAddFoodDialog()
                     onNavigateToFoodSearch(uiState.selectedMealType)
                 }) {
@@ -117,7 +133,7 @@ fun FoodLoggingScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { 
+                TextButton(onClick = {
                     viewModel.hideAddFoodDialog()
                     onNavigateToBarCodeScanner()
                 }) {
@@ -157,7 +173,7 @@ private fun DateSelector(
     isToday: Boolean
 ) {
     val dateFormat = SimpleDateFormat("EEEE, MMM dd, yyyy", Locale.getDefault())
-    
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -176,7 +192,7 @@ private fun DateSelector(
             IconButton(onClick = onPreviousDay) {
                 Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Day")
             }
-            
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -191,7 +207,7 @@ private fun DateSelector(
                     }
                 }
             }
-            
+
             IconButton(onClick = onNextDay) {
                 Icon(Icons.Default.ChevronRight, contentDescription = "Next Day")
             }
@@ -222,9 +238,9 @@ private fun DailyNutritionSummary(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -289,7 +305,7 @@ private fun MealSection(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-                
+
                 val mealCalories = foodLogs.sumOf { it.foodLog.calories }
                 Text(
                     text = "${mealCalories.toInt()} kcal",
@@ -297,9 +313,9 @@ private fun MealSection(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             if (foodLogs.isEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -326,9 +342,9 @@ private fun MealSection(
                             Divider(modifier = Modifier.padding(vertical = 4.dp))
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(8.dp))
-                    
+
                     TextButton(
                         onClick = onAddFood,
                         modifier = Modifier.fillMaxWidth()
@@ -351,7 +367,7 @@ private fun FoodLogItem(
 ) {
     val foodLog = foodLogWithFood.foodLog
     val food = foodLogWithFood.food
-    
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -378,7 +394,7 @@ private fun FoodLogItem(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
         }
-        
+
         Row {
             IconButton(onClick = onEdit) {
                 Icon(
@@ -410,7 +426,7 @@ private fun EditFoodDialog(
     var quantity by remember { mutableStateOf(foodLog.quantity.toString()) }
     var selectedMealType by remember { mutableStateOf(foodLog.mealType) }
     val mealTypes = listOf("Breakfast", "Lunch", "Dinner", "Snack")
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -449,10 +465,10 @@ private fun EditFoodDialog(
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                 }
-                
+
                 Text("Quantity (grams):")
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 OutlinedTextField(
                     value = quantity,
                     onValueChange = { quantity = it },
@@ -461,12 +477,12 @@ private fun EditFoodDialog(
                     suffix = { Text("g") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Text("Meal Type:")
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Column {
                     mealTypes.forEach { mealType ->
                         Row(

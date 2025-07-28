@@ -3,12 +3,16 @@ package com.dietapp.navigation
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.dietapp.auth.AuthState
 import com.dietapp.ui.screens.*
+import com.dietapp.ui.screens.food.FoodSearchScreen
 import com.dietapp.ui.scanner.BarcodeScannerScreen
 import com.dietapp.ui.charts.ChartsScreen
 import com.dietapp.ui.profile.ProfileScreen
@@ -86,17 +90,37 @@ fun DietAppNavigation() {
         }
 
         // Food Logging
-        composable("food_logging") {
+        composable("food_logging") { backStackEntry ->
             FoodLoggingScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
                 onNavigateToFoodSearch = { mealType ->
-                    // TODO: Implement food search navigation
                     navController.navigate("food_search/$mealType")
                 },
                 onNavigateToBarCodeScanner = {
                     navController.navigate("barcode_scanner")
+                },
+                savedStateHandle = backStackEntry.savedStateHandle
+            )
+        }
+
+        // Food Search
+        composable(
+            route = "food_search/{mealType}",
+            arguments = listOf(navArgument("mealType") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val mealType = backStackEntry.arguments?.getString("mealType") ?: "Breakfast"
+            FoodSearchScreen(
+                mealType = mealType,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onFoodSelected = { food: com.dietapp.data.entities.Food, selectedMealType: String ->
+                    // Set result in the saved state handle for the previous destination
+                    navController.previousBackStackEntry?.savedStateHandle?.set("selected_food", food)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("selected_meal_type", selectedMealType)
+                    navController.popBackStack()
                 }
             )
         }

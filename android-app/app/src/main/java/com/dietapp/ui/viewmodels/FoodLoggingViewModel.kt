@@ -178,7 +178,37 @@ class FoodLoggingViewModel @Inject constructor(
         }
     }
 
-    fun clearError() {
+    fun addFoodToLog(food: Food, mealType: String, quantity: Double = 100.0) {
+        viewModelScope.launch {
+            try {
+                // Calculate nutrition values based on quantity
+                val factor = quantity / 100.0 // Food values are per 100g
+
+                val foodLog = FoodLog(
+                    id = 0, // Auto-generated
+                    userId = authRepository.getCurrentUserId() ?: "",
+                    foodId = food.id,
+                    quantity = quantity,
+                    unit = "g",
+                    mealType = mealType,
+                    date = _uiState.value.selectedDate,
+                    calories = food.calories * factor,
+                    protein = food.protein * factor,
+                    carbs = food.carbs * factor,
+                    fat = food.fat * factor
+                )
+
+                foodRepository.insertFoodLog(foodLog)
+                hideAddFoodDialog()
+
+                // Food logs will be automatically updated through the Flow
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Failed to add food to log: ${e.message}"
+                )
+            }
+        }
+    }    fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
 
