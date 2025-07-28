@@ -104,7 +104,7 @@ fun FoodSearchScreen(
                     food = food,
                     onAddFood = {
                         onFoodSelected(food, mealType)
-                        onNavigateBack()
+                        // Don't call onNavigateBack() here - it's handled in the navigation callback
                     }
                 )
             }

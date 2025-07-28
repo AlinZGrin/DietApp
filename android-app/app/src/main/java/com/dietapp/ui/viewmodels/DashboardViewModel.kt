@@ -75,19 +75,42 @@ class DashboardViewModel @Inject constructor(
                 // If no profile exists, create a default one
                 val profile = userProfile ?: createDefaultProfile(userId)
 
-                // Load today's data
-                val today = Date()
-                val dailySummary = loadDailySummary(userId, today, profile)
+                // Load weight trend and motivational tip (these don't change often)
                 val weightTrend = loadWeightTrend(userId)
                 val motivationalTip = getMotivationalTip()
 
-                _uiState.value = DashboardUiState(
-                    isLoading = false,
-                    userProfile = profile,
-                    dailySummary = dailySummary,
-                    weightTrend = weightTrend,
-                    motivationalTip = motivationalTip
-                )
+                // Observe food logs for today and update dashboard automatically
+                val today = Date()
+                foodRepository.getFoodLogsForDate(userId, today).collect { foodLogs ->
+                    val totalCalories = foodLogs.sumOf { it.calories }
+                    val totalProtein = foodLogs.sumOf { it.protein }
+                    val totalCarbs = foodLogs.sumOf { it.carbs }
+                    val totalFat = foodLogs.sumOf { it.fat }
+
+                    val dailySummary = DailySummary(
+                        userId = userId,
+                        date = today,
+                        totalCalories = totalCalories,
+                        totalProtein = totalProtein,
+                        totalCarbs = totalCarbs,
+                        totalFat = totalFat,
+                        totalCaloriesBurned = 0.0, // TODO: Implement exercise tracking
+                        goalCalories = profile.dailyCalorieGoal,
+                        goalProtein = profile.dailyProteinGoal,
+                        goalCarbs = profile.dailyCarbGoal,
+                        goalFat = profile.dailyFatGoal
+                    )
+
+                    _uiState.value = DashboardUiState(
+                        isLoading = false,
+                        userProfile = profile,
+                        dailySummary = dailySummary,
+                        weightTrend = weightTrend,
+                        motivationalTip = motivationalTip
+                    )
+
+                    println("DEBUG DashboardViewModel: Updated dashboard with ${foodLogs.size} food logs, total calories: $totalCalories")
+                }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -119,33 +142,6 @@ class DashboardViewModel @Inject constructor(
 
         userRepository.insertUserProfile(defaultProfile)
         return defaultProfile
-    }
-
-    private suspend fun loadDailySummary(
-        userId: String,
-        date: Date,
-        userProfile: com.dietapp.data.entities.UserProfile
-    ): DailySummary {
-        // For now, use mock data until we implement complex aggregation
-        val totalCalories = 0.0 // TODO: Implement food aggregation
-        val totalProtein = 0.0
-        val totalCarbs = 0.0
-        val totalFat = 0.0
-        val totalCaloriesBurned = 0.0 // TODO: Implement exercise tracking
-
-        return DailySummary(
-            userId = userId,
-            date = date,
-            totalCalories = totalCalories,
-            totalProtein = totalProtein,
-            totalCarbs = totalCarbs,
-            totalFat = totalFat,
-            totalCaloriesBurned = totalCaloriesBurned,
-            goalCalories = userProfile.dailyCalorieGoal,
-            goalProtein = userProfile.dailyProteinGoal,
-            goalCarbs = userProfile.dailyCarbGoal,
-            goalFat = userProfile.dailyFatGoal
-        )
     }
 
     private suspend fun loadWeightTrend(userId: String): WeightTrend? {

@@ -9,6 +9,8 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.*
 import javax.inject.Inject
@@ -40,7 +42,7 @@ class FoodRepository @Inject constructor(
 
     suspend fun insertFood(food: Food) {
         try {
-            // Save to Firebase Firestore
+            // Save to Firebase Firestore with proper Timestamp conversion
             val foodData = hashMapOf(
                 "id" to food.id,
                 "name" to food.name,
@@ -56,7 +58,7 @@ class FoodRepository @Inject constructor(
                 "servingSize" to food.servingSize,
                 "servingUnit" to food.servingUnit,
                 "isCustom" to food.isCustom,
-                "createdAt" to food.createdAt
+                "createdAt" to com.google.firebase.Timestamp(food.createdAt)
             )
 
             firestore.collection("foods").document(food.id).set(foodData).await()
@@ -88,19 +90,19 @@ class FoodRepository @Inject constructor(
     // Food Log Operations
     suspend fun insertFoodLog(foodLog: FoodLog) {
         try {
-            // Save to Firebase Firestore
+            // Save to Firebase Firestore with proper Timestamp conversion
             val logData = hashMapOf(
                 "userId" to foodLog.userId,
                 "foodId" to foodLog.foodId,
                 "quantity" to foodLog.quantity,
                 "unit" to foodLog.unit,
                 "mealType" to foodLog.mealType,
-                "date" to foodLog.date,
+                "date" to com.google.firebase.Timestamp(foodLog.date),
                 "calories" to foodLog.calories,
                 "protein" to foodLog.protein,
                 "carbs" to foodLog.carbs,
                 "fat" to foodLog.fat,
-                "createdAt" to foodLog.createdAt
+                "createdAt" to com.google.firebase.Timestamp(foodLog.createdAt)
             )
 
             val documentReference = firestore.collection("foodLogs").add(logData).await()
@@ -118,27 +120,92 @@ class FoodRepository @Inject constructor(
     }
 
     fun getFoodLogsForDate(userId: String, date: Date): Flow<List<FoodLog>> = callbackFlow {
+        // Create start and end of day for the date range query
+        val calendar = Calendar.getInstance()
+        calendar.time = date
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        val startOfDay = com.google.firebase.Timestamp(calendar.time)
+
+        calendar.set(Calendar.HOUR_OF_DAY, 23)
+        calendar.set(Calendar.MINUTE, 59)
+        calendar.set(Calendar.SECOND, 59)
+        calendar.set(Calendar.MILLISECOND, 999)
+        val endOfDay = com.google.firebase.Timestamp(calendar.time)
+
         val listener = firestore.collection("foodLogs")
             .whereEqualTo("userId", userId)
-            .whereEqualTo("date", date)
+            .whereGreaterThanOrEqualTo("date", startOfDay)
+            .whereLessThanOrEqualTo("date", endOfDay)
+            .orderBy("date", Query.Direction.ASCENDING)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("DEBUG FoodRepository: Error getting food logs from Firebase: ${error.message}")
-                    close(error)
+                    // Fallback to local database
+                    launch {
+                        try {
+                            foodLogDao.getFoodLogsByDate(userId, date).collect { localLogs ->
+                                trySend(localLogs)
+                            }
+                        } catch (e: Exception) {
+                            println("DEBUG FoodRepository: Error getting local food logs: ${e.message}")
+                            trySend(emptyList())
+                        }
+                    }
                     return@addSnapshotListener
                 }
 
                 val logs = snapshot?.documents?.mapNotNull { doc ->
                     try {
-                        doc.toObject(FoodLog::class.java)?.copy(id = doc.id.hashCode().toLong())
+                        val data = doc.data
+                        if (data != null) {
+                            FoodLog(
+                                id = doc.id.hashCode().toLong(),
+                                userId = data["userId"] as? String ?: "",
+                                foodId = data["foodId"] as? String ?: "",
+                                quantity = (data["quantity"] as? Number)?.toDouble() ?: 0.0,
+                                unit = data["unit"] as? String ?: "g",
+                                mealType = data["mealType"] as? String ?: "",
+                                date = (data["date"] as? com.google.firebase.Timestamp)?.toDate() ?: Date(),
+                                calories = (data["calories"] as? Number)?.toDouble() ?: 0.0,
+                                protein = (data["protein"] as? Number)?.toDouble() ?: 0.0,
+                                carbs = (data["carbs"] as? Number)?.toDouble() ?: 0.0,
+                                fat = (data["fat"] as? Number)?.toDouble() ?: 0.0,
+                                createdAt = (data["createdAt"] as? com.google.firebase.Timestamp)?.toDate() ?: Date()
+                            )
+                        } else null
                     } catch (e: Exception) {
-                        println("DEBUG FoodRepository: Error parsing food log: ${e.message}")
+                        println("DEBUG FoodRepository: Error parsing food log from doc ${doc.id}: ${e.message}")
                         null
                     }
                 } ?: emptyList()
 
-                trySend(logs)
+                println("DEBUG FoodRepository: Retrieved ${logs.size} food logs from Firestore for date: $date")
+
+                // If Firestore returns no results, also try local database as backup
+                if (logs.isEmpty()) {
+                    println("DEBUG FoodRepository: No Firestore results, checking local database as backup...")
+                    launch {
+                        try {
+                            foodLogDao.getFoodLogsByDate(userId, date).take(1).collect { localLogs ->
+                                println("DEBUG FoodRepository: Local database returned ${localLogs.size} logs")
+                                if (localLogs.isNotEmpty()) {
+                                    trySend(localLogs)
+                                } else {
+                                    trySend(logs) // Send empty Firestore results
+                                }
+                            }
+                        } catch (e: Exception) {
+                            println("DEBUG FoodRepository: Error getting local food logs: ${e.message}")
+                            trySend(logs) // Send empty Firestore results
+                        }
+                    }
+                } else {
+                    trySend(logs)
+                }
             }
 
         awaitClose { listener.remove() }

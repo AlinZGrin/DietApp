@@ -127,8 +127,11 @@ fun DietAppNavigation() {
                     navController.previousBackStackEntry?.savedStateHandle?.set("food_fat", food.fat)
                     navController.previousBackStackEntry?.savedStateHandle?.set("food_fiber", food.fiber)
                     navController.previousBackStackEntry?.savedStateHandle?.set("food_sugar", food.sugar)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_sodium", food.sodium)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_barcode", food.barcode)
                     navController.previousBackStackEntry?.savedStateHandle?.set("food_serving_size", food.servingSize)
                     navController.previousBackStackEntry?.savedStateHandle?.set("food_serving_unit", food.servingUnit)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_is_custom", food.isCustom)
                     navController.previousBackStackEntry?.savedStateHandle?.set("selected_meal_type", selectedMealType)
                     navController.popBackStack()
                 }

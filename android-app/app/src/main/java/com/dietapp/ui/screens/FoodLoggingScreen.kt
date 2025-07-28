@@ -42,6 +42,8 @@ fun FoodLoggingScreen(
             val foodId = handle.get<String>("food_id")
             val selectedMealType = handle.get<String>("selected_meal_type")
 
+            println("DEBUG FoodLoggingScreen: Received food_id: $foodId, meal_type: $selectedMealType")
+
             if (foodId != null && selectedMealType != null) {
                 // Reconstruct Food object from individual values
                 val selectedFood = com.dietapp.data.entities.Food(
@@ -54,12 +56,21 @@ fun FoodLoggingScreen(
                     fat = handle.get<Double>("food_fat") ?: 0.0,
                     fiber = handle.get<Double>("food_fiber"),
                     sugar = handle.get<Double>("food_sugar"),
+                    sodium = handle.get<Double>("food_sodium"),
+                    barcode = handle.get<String>("food_barcode"),
                     servingSize = handle.get<Double>("food_serving_size"),
-                    servingUnit = handle.get<String>("food_serving_unit")
+                    servingUnit = handle.get<String>("food_serving_unit"),
+                    createdAt = Date(),
+                    isCustom = handle.get<Boolean>("food_is_custom") ?: false
                 )
 
+                println("DEBUG FoodLoggingScreen: Reconstructed food: ${selectedFood.name}, calories: ${selectedFood.calories}")
+                println("DEBUG FoodLoggingScreen: Calling addFoodToLog...")
+
                 viewModel.addFoodToLog(selectedFood, selectedMealType)
-                
+
+                println("DEBUG FoodLoggingScreen: addFoodToLog call completed")
+
                 // Clear all the result values to prevent re-adding
                 handle.remove<String>("food_id")
                 handle.remove<String>("food_name")
@@ -70,8 +81,11 @@ fun FoodLoggingScreen(
                 handle.remove<Double>("food_fat")
                 handle.remove<Double>("food_fiber")
                 handle.remove<Double>("food_sugar")
+                handle.remove<Double>("food_sodium")
+                handle.remove<String>("food_barcode")
                 handle.remove<Double>("food_serving_size")
                 handle.remove<String>("food_serving_unit")
+                handle.remove<Boolean>("food_is_custom")
                 handle.remove<String>("selected_meal_type")
             }
         }
