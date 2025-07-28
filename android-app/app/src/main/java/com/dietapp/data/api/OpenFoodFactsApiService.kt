@@ -38,6 +38,7 @@ data class OpenFoodFactsProduct(
 )
 
 data class OpenFoodFactsNutriments(
+    // Main nutrition fields per 100g
     val energy_100g: Double?,
     val energy_kcal_100g: Double?,
     val proteins_100g: Double?,
@@ -46,5 +47,23 @@ data class OpenFoodFactsNutriments(
     val fiber_100g: Double?,
     val sugars_100g: Double?,
     val salt_100g: Double?,
-    val sodium_100g: Double?
+    val sodium_100g: Double?,
+
+    // Alternative field names with dashes (using @SerializedName)
+    val energy_kcal_per_100g: Double?,
+    val proteins_per_100g: Double?,
+    val carbohydrates_per_100g: Double?,
+    val fat_per_100g: Double?,
+    val fiber_per_100g: Double?,
+    val sugars_per_100g: Double?,
+
+    // Sometimes the values are just named without _100g
+    val energy: Double?,
+    val proteins: Double?,
+    val carbohydrates: Double?,
+    val fat: Double?,
+    val fiber: Double?,
+    val sugars: Double?,
+    val salt: Double?,
+    val sodium: Double?
 )
