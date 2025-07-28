@@ -1,6 +1,7 @@
 package com.dietapp.di
 
 import com.dietapp.auth.AuthRepository
+import com.dietapp.data.api.OpenFoodFactsApiService
 import com.dietapp.data.dao.*
 import com.dietapp.data.repository.*
 import com.google.firebase.firestore.FirebaseFirestore
@@ -8,6 +9,8 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
 
 @Module
@@ -55,5 +58,34 @@ object RepositoryModule {
         firestore: FirebaseFirestore
     ): WeightRepository {
         return WeightRepository(weightDao, firestore)
+    }
+
+    @Provides
+    @Singleton
+    fun provideWaterIntakeRepository(
+        waterIntakeDao: WaterIntakeDao
+    ): WaterIntakeRepository {
+        return WaterIntakeRepository(waterIntakeDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://world.openfoodfacts.org/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideOpenFoodFactsApiService(retrofit: Retrofit): OpenFoodFactsApiService {
+        return retrofit.create(OpenFoodFactsApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideOpenFoodFactsRepository(openFoodFactsApiService: OpenFoodFactsApiService): OpenFoodFactsRepository {
+        return OpenFoodFactsRepository(openFoodFactsApiService)
     }
 }

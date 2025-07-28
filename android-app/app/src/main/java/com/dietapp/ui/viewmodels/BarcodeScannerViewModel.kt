@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dietapp.data.entities.Food
 import com.dietapp.data.repository.FoodRepository
+import com.dietapp.data.repository.OpenFoodFactsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -22,7 +23,8 @@ data class BarcodeScannerUiState(
 
 @HiltViewModel
 class BarcodeScannerViewModel @Inject constructor(
-    private val foodRepository: FoodRepository
+    private val foodRepository: FoodRepository,
+    private val openFoodFactsRepository: OpenFoodFactsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BarcodeScannerUiState())
@@ -72,7 +74,7 @@ class BarcodeScannerViewModel @Inject constructor(
             )
 
             try {
-                // Try to find in local database
+                // First, try to find in local database
                 val localFood = foodRepository.getFoodByBarcode(barcode)
 
                 if (localFood != null) {
@@ -80,8 +82,22 @@ class BarcodeScannerViewModel @Inject constructor(
                         isLookingUp = false,
                         foundFood = localFood
                     )
+                    return@launch
+                }
+
+                // If not found locally, search using OpenFoodFacts API
+                val openFoodFactsFood = openFoodFactsRepository.searchFoodByBarcode(barcode)
+
+                if (openFoodFactsFood != null) {
+                    // Save to local database for future use
+                    foodRepository.insertFood(openFoodFactsFood)
+
+                    _uiState.value = _uiState.value.copy(
+                        isLookingUp = false,
+                        foundFood = openFoodFactsFood
+                    )
                 } else {
-                    // For now, create a mock food item until USDA API is implemented
+                    // If not found in USDA API, create a mock food item
                     val mockFood = Food(
                         id = barcode,
                         name = "Unknown Food (Barcode: $barcode)",
@@ -109,6 +125,7 @@ class BarcodeScannerViewModel @Inject constructor(
                     )
                 }
             } catch (e: Exception) {
+                println("DEBUG BarcodeScannerViewModel: Error looking up food: ${e.message}")
                 _uiState.value = _uiState.value.copy(
                     isLookingUp = false,
                     lookupError = "Failed to lookup food: ${e.message}"
