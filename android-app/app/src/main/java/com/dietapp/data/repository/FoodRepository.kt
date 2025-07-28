@@ -39,7 +39,38 @@ class FoodRepository @Inject constructor(
     }
 
     suspend fun insertFood(food: Food) {
-        foodDao.insertFood(food)
+        try {
+            // Save to Firebase Firestore
+            val foodData = hashMapOf(
+                "id" to food.id,
+                "name" to food.name,
+                "brand" to food.brand,
+                "calories" to food.calories,
+                "protein" to food.protein,
+                "carbs" to food.carbs,
+                "fat" to food.fat,
+                "fiber" to food.fiber,
+                "sugar" to food.sugar,
+                "sodium" to food.sodium,
+                "barcode" to food.barcode,
+                "servingSize" to food.servingSize,
+                "servingUnit" to food.servingUnit,
+                "isCustom" to food.isCustom,
+                "createdAt" to food.createdAt
+            )
+
+            firestore.collection("foods").document(food.id).set(foodData).await()
+            println("DEBUG FoodRepository: Saved food to Firebase with ID: ${food.id}")
+
+            // Also save to local database for offline access
+            foodDao.insertFood(food)
+            println("DEBUG FoodRepository: Saved food to local database")
+
+        } catch (e: Exception) {
+            println("DEBUG FoodRepository: Error saving food to Firebase: ${e.message}")
+            // Fallback to local database only
+            foodDao.insertFood(food)
+        }
     }
 
     suspend fun insertFoods(foods: List<Food>) {
@@ -62,8 +93,13 @@ class FoodRepository @Inject constructor(
                 "userId" to foodLog.userId,
                 "foodId" to foodLog.foodId,
                 "quantity" to foodLog.quantity,
+                "unit" to foodLog.unit,
                 "mealType" to foodLog.mealType,
                 "date" to foodLog.date,
+                "calories" to foodLog.calories,
+                "protein" to foodLog.protein,
+                "carbs" to foodLog.carbs,
+                "fat" to foodLog.fat,
                 "createdAt" to foodLog.createdAt
             )
 

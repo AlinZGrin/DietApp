@@ -181,6 +181,13 @@ class FoodLoggingViewModel @Inject constructor(
     fun addFoodToLog(food: Food, mealType: String, quantity: Double = 100.0) {
         viewModelScope.launch {
             try {
+                // First, save the food to the database if it doesn't exist
+                // This ensures the food is available when we try to display food logs
+                val existingFood = foodRepository.getFoodById(food.id)
+                if (existingFood == null) {
+                    foodRepository.insertFood(food)
+                }
+
                 // Calculate nutrition values based on quantity
                 val factor = quantity / 100.0 // Food values are per 100g
 
