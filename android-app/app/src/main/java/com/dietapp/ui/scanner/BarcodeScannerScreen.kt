@@ -11,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -50,27 +52,25 @@ fun BarcodeScannerScreen(
                         IconButton(
                             onClick = { viewModel.stopScanning() }
                         ) {
-                            Icon(Icons.Default.Stop, contentDescription = "Stop Scanning")
+                            Icon(Icons.Default.Stop, contentDescription = "Stop scanning")
                         }
                     }
                 }
             )
         }
-    ) { paddingValues ->
-        Box(
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(innerPadding)
         ) {
             when {
-                !cameraPermissionState.status.isGranted -> {
-                    // Permission not granted
-                    CameraPermissionContent(
-                        shouldShowRationale = cameraPermissionState.status.shouldShowRationale,
+                !uiState.hasPermission -> {
+                    // Permission request content
+                    PermissionRequestContent(
                         onRequestPermission = { cameraPermissionState.launchPermissionRequest() }
                     )
                 }
-
                 uiState.isScanning -> {
                     // Camera preview
                     CameraPreview(
@@ -78,84 +78,94 @@ fun BarcodeScannerScreen(
                             viewModel.onBarcodeScanned(barcode)
                         },
                         onError = { error ->
-                            viewModel.onScanError(error)
-                        }
+                            viewModel.updateError("Camera error: $error")
+                        },
+                        modifier = Modifier.weight(1f)
                     )
-
-                    // Scanning overlay
-                    ScanningOverlay()
                 }
-
                 else -> {
                     // Scanner ready state
                     ScannerReadyContent(
                         uiState = uiState,
+                        viewModel = viewModel,
                         onStartScanning = { viewModel.startScanning() },
                         onClearBarcode = { viewModel.clearScannedBarcode() },
                         onClearError = { viewModel.clearError() },
                         onLookupFood = { barcode -> viewModel.lookupFood(barcode) },
-                        onAddFoodToLog = { food -> viewModel.addFoodToLog(food) },
                         onClearLookupError = { viewModel.clearLookupError() }
                     )
                 }
             }
         }
     }
+
+    // Meal Selector Dialog
+    if (uiState.showMealSelector) {
+        MealSelectorDialog(
+            uiState = uiState,
+            onDismiss = { viewModel.hideMealSelector() },
+            onMealTypeSelected = { mealType -> viewModel.setMealType(mealType) },
+            onQuantityChanged = { quantity -> viewModel.setQuantity(quantity) },
+            onConfirm = { viewModel.addSelectedFoodToLog() }
+        )
+    }
+
+    // Success dialog
+    if (uiState.logSuccess) {
+        LaunchedEffect(uiState.logSuccess) {
+            kotlinx.coroutines.delay(2000)
+            viewModel.hideMealSelector()
+        }
+
+        AlertDialog(
+            onDismissRequest = { viewModel.hideMealSelector() },
+            confirmButton = {
+                TextButton(onClick = { viewModel.hideMealSelector() }) {
+                    Text("OK")
+                }
+            },
+            title = { Text("Success") },
+            text = { Text("Food has been added to your log!") }
+        )
+    }
 }
 
 @Composable
-private fun CameraPermissionContent(
-    shouldShowRationale: Boolean,
+private fun PermissionRequestContent(
     onRequestPermission: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.CameraAlt,
-            contentDescription = "Camera",
+            Icons.Default.CameraAlt,
+            contentDescription = null,
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.primary
         )
-
         Spacer(modifier = Modifier.height(16.dp))
-
         Text(
             text = "Camera Permission Required",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center
         )
-
         Spacer(modifier = Modifier.height(8.dp))
-
         Text(
-            text = if (shouldShowRationale) {
-                "Camera access is needed to scan barcodes. Please grant camera permission to continue."
-            } else {
-                "To scan barcodes, we need access to your camera."
-            },
+            text = "We need camera access to scan barcodes for you.",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
-
         Spacer(modifier = Modifier.height(24.dp))
-
         Button(
             onClick = onRequestPermission,
-            modifier = Modifier.fillMaxWidth(0.8f)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(
-                imageVector = Icons.Default.CameraAlt,
-                contentDescription = null,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Text("Grant Camera Permission")
+            Text("Grant Permission")
         }
     }
 }
@@ -163,48 +173,50 @@ private fun CameraPermissionContent(
 @Composable
 private fun ScannerReadyContent(
     uiState: BarcodeScannerUiState,
+    viewModel: BarcodeScannerViewModel,
     onStartScanning: () -> Unit,
     onClearBarcode: () -> Unit,
     onClearError: () -> Unit,
     onLookupFood: (String) -> Unit,
-    onAddFoodToLog: (com.dietapp.data.entities.Food) -> Unit,
     onClearLookupError: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(
-            imageVector = Icons.Default.QrCodeScanner,
-            contentDescription = "Scanner",
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Ready to Scan",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Point your camera at a barcode to scan it",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Show scanned barcode if available
-        uiState.scannedBarcode?.let { barcode ->
+        if (uiState.scannedBarcode == null) {
+            // Initial scan state
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(
+                Icons.Default.QrCodeScanner,
+                contentDescription = null,
+                modifier = Modifier.size(120.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Ready to Scan",
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Point your camera at a barcode to get started",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Button(
+                onClick = onStartScanning,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Start Scanning")
+            }
+        } else {
+            // Show scanned barcode and lookup results
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -221,52 +233,43 @@ private fun ScannerReadyContent(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = barcode,
+                        text = uiState.scannedBarcode,
                         style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.fillMaxWidth()
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onClearBarcode,
-                            modifier = Modifier.weight(1f)
+
+                    if (uiState.isLookingUp) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Clear")
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Looking up food information...")
                         }
-                        Button(
-                            onClick = { onLookupFood(barcode) },
-                            modifier = Modifier.weight(1f)
+                    } else {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Look Up Food")
+                            OutlinedButton(
+                                onClick = onClearBarcode,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Clear")
+                            }
+                            Button(
+                                onClick = { onLookupFood(uiState.scannedBarcode) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Lookup Food")
+                            }
                         }
                     }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Show loading state for food lookup
-        if (uiState.isLookingUp) {
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(
-                        text = "Looking up food information...",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -348,10 +351,18 @@ private fun ScannerReadyContent(
                             Text("Scan Another")
                         }
                         Button(
-                            onClick = { onAddFoodToLog(food) },
-                            modifier = Modifier.weight(1f)
+                            onClick = { viewModel.showMealSelector() },
+                            modifier = Modifier.weight(1f),
+                            enabled = !uiState.isLogging
                         ) {
-                            Text("Add to Log")
+                            if (uiState.isLogging) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("Add to Log")
+                            }
                         }
                     }
                 }
@@ -429,70 +440,15 @@ private fun ScannerReadyContent(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        Button(
-            onClick = onStartScanning,
-            modifier = Modifier.fillMaxWidth(0.8f)
-        ) {
-            Icon(
-                imageVector = Icons.Default.CameraAlt,
-                contentDescription = null,
-                modifier = Modifier.padding(end = 8.dp)
+        // Show general message when no barcode is scanned
+        if (uiState.scannedBarcode == null && uiState.error == null) {
+            Text(
+                text = "Scan a barcode to find food information and add it to your daily log.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                modifier = Modifier.padding(16.dp),
+                textAlign = TextAlign.Center
             )
-            Text("Start Scanning")
-        }
-    }
-}
-
-@Composable
-private fun ScanningOverlay() {
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Semi-transparent background
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-        )
-
-        // Scanning frame
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(64.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Card(
-                modifier = Modifier
-                    .size(250.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.Transparent
-                ),
-                border = androidx.compose.foundation.BorderStroke(
-                    3.dp,
-                    MaterialTheme.colorScheme.primary
-                )
-            ) {
-                // Empty card for scanning frame
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                )
-            ) {
-                Text(
-                    text = "Point your camera at a barcode",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(16.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
         }
     }
 }
@@ -513,7 +469,130 @@ private fun NutritionInfo(
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MealSelectorDialog(
+    uiState: BarcodeScannerUiState,
+    onDismiss: () -> Unit,
+    onMealTypeSelected: (String) -> Unit,
+    onQuantityChanged: (Double) -> Unit,
+    onConfirm: () -> Unit
+) {
+    val mealTypes = listOf("Breakfast", "Lunch", "Dinner", "Snack")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = !uiState.isLogging
+            ) {
+                if (uiState.isLogging) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Add to Log")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        title = {
+            Text("Add to Food Log")
+        },
+        text = {
+            Column {
+                uiState.foundFood?.let { food ->
+                    Text(
+                        text = "Adding: ${food.name}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                Text("Meal Type:")
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    mealTypes.forEach { mealType ->
+                        FilterChip(
+                            onClick = { onMealTypeSelected(mealType) },
+                            label = { Text(mealType) },
+                            selected = uiState.selectedMealType == mealType,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Quantity (grams):")
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = uiState.selectedQuantity.toInt().toString(),
+                    onValueChange = { value ->
+                        value.toDoubleOrNull()?.let { quantity ->
+                            if (quantity > 0) {
+                                onQuantityChanged(quantity)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    suffix = { Text("g") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Show calculated nutrition for selected quantity
+                uiState.foundFood?.let { food ->
+                    val multiplier = uiState.selectedQuantity / 100.0
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = "Nutrition for ${uiState.selectedQuantity.toInt()}g:",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Calories: ${(food.calories * multiplier).toInt()}")
+                                Text("Protein: ${(food.protein * multiplier).toInt()}g")
+                                Text("Carbs: ${(food.carbs * multiplier).toInt()}g")
+                                Text("Fat: ${(food.fat * multiplier).toInt()}g")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
 }

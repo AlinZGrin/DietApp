@@ -2,7 +2,9 @@ package com.dietapp.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dietapp.auth.AuthRepository
 import com.dietapp.data.entities.Food
+import com.dietapp.data.entities.FoodLog
 import com.dietapp.data.repository.FoodRepository
 import com.dietapp.data.repository.OpenFoodFactsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,13 +20,19 @@ data class BarcodeScannerUiState(
     val hasPermission: Boolean = false,
     val isLookingUp: Boolean = false,
     val foundFood: Food? = null,
-    val lookupError: String? = null
+    val lookupError: String? = null,
+    val showMealSelector: Boolean = false,
+    val selectedMealType: String = "Breakfast",
+    val selectedQuantity: Double = 100.0, // grams
+    val isLogging: Boolean = false,
+    val logSuccess: Boolean = false
 )
 
 @HiltViewModel
 class BarcodeScannerViewModel @Inject constructor(
     private val foodRepository: FoodRepository,
-    private val openFoodFactsRepository: OpenFoodFactsRepository
+    private val openFoodFactsRepository: OpenFoodFactsRepository,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BarcodeScannerUiState())
@@ -134,20 +142,89 @@ class BarcodeScannerViewModel @Inject constructor(
         }
     }
 
-    fun addFoodToLog(food: Food, quantity: Double = 1.0) {
+    fun addFoodToLog(food: Food, quantity: Double = 100.0, mealType: String = "Breakfast") {
         viewModelScope.launch {
             try {
-                // TODO: Add to food log with user's meal selection
-                // For now, just clear the found food
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _uiState.value = _uiState.value.copy(
+                        error = "User not authenticated"
+                    )
+                    return@launch
+                }
+
+                _uiState.value = _uiState.value.copy(isLogging = true)
+
+                // Calculate nutrition values based on quantity (per 100g)
+                val quantityMultiplier = quantity / 100.0
+                val calculatedCalories = food.calories * quantityMultiplier
+                val calculatedProtein = food.protein * quantityMultiplier
+                val calculatedCarbs = food.carbs * quantityMultiplier
+                val calculatedFat = food.fat * quantityMultiplier
+
+                val foodLog = FoodLog(
+                    userId = userId,
+                    foodId = food.id,
+                    quantity = quantity,
+                    unit = "g",
+                    mealType = mealType,
+                    date = Date(),
+                    calories = calculatedCalories,
+                    protein = calculatedProtein,
+                    carbs = calculatedCarbs,
+                    fat = calculatedFat,
+                    createdAt = Date()
+                )
+
+                foodRepository.insertFoodLog(foodLog)
+
                 _uiState.value = _uiState.value.copy(
+                    isLogging = false,
+                    logSuccess = true,
+                    showMealSelector = false,
                     foundFood = null,
                     scannedBarcode = null
                 )
+
+                println("DEBUG BarcodeScannerViewModel: Successfully logged food: ${food.name}, quantity: ${quantity}g, calories: ${calculatedCalories}")
+
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
+                    isLogging = false,
                     error = "Failed to add food to log: ${e.message}"
                 )
+                println("DEBUG BarcodeScannerViewModel: Error logging food: ${e.message}")
             }
+        }
+    }
+
+    fun showMealSelector() {
+        _uiState.value = _uiState.value.copy(showMealSelector = true)
+    }
+
+    fun hideMealSelector() {
+        _uiState.value = _uiState.value.copy(
+            showMealSelector = false,
+            logSuccess = false
+        )
+    }
+
+    fun setMealType(mealType: String) {
+        _uiState.value = _uiState.value.copy(selectedMealType = mealType)
+    }
+
+    fun setQuantity(quantity: Double) {
+        _uiState.value = _uiState.value.copy(selectedQuantity = quantity)
+    }
+
+    fun addSelectedFoodToLog() {
+        val currentState = _uiState.value
+        currentState.foundFood?.let { food ->
+            addFoodToLog(
+                food = food,
+                quantity = currentState.selectedQuantity,
+                mealType = currentState.selectedMealType
+            )
         }
     }
 
@@ -165,5 +242,9 @@ class BarcodeScannerViewModel @Inject constructor(
 
     fun clearLookupError() {
         _uiState.value = _uiState.value.copy(lookupError = null)
+    }
+
+    fun updateError(error: String) {
+        _uiState.value = _uiState.value.copy(error = error)
     }
 }
