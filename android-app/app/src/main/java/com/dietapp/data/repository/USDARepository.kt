@@ -13,7 +13,7 @@ import javax.inject.Singleton
 class USDARepository @Inject constructor(
     private val usdaApiService: USDAApiService
 ) {
-    
+
     suspend fun searchFoodByBarcode(barcode: String, apiKey: String): Food? {
         return try {
             // Search for food by barcode/UPC

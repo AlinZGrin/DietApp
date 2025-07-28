@@ -11,11 +11,11 @@ import javax.inject.Singleton
 class OpenFoodFactsRepository @Inject constructor(
     private val openFoodFactsApiService: OpenFoodFactsApiService
 ) {
-    
+
     suspend fun searchFoodByBarcode(barcode: String): Food? {
         return try {
             val response = openFoodFactsApiService.getProductByBarcode(barcode)
-            
+
             if (response.status == 1 && response.product != null) {
                 convertOpenFoodFactsToFood(response.product, barcode)
             } else {
@@ -51,7 +51,7 @@ class OpenFoodFactsRepository @Inject constructor(
 
     private fun parseServingSize(servingText: String?): Double {
         if (servingText == null) return 100.0
-        
+
         val regex = Regex("(\\d+(?:\\.\\d+)?)")
         val match = regex.find(servingText)
         return match?.value?.toDoubleOrNull() ?: 100.0
