@@ -3,12 +3,11 @@ package com.dietapp.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dietapp.data.entities.Food
-import com.dietapp.data.repository.FoodRepository
+import com.dietapp.data.repository.USDARepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,11 +21,14 @@ data class FoodSearchUiState(
 
 @HiltViewModel
 class FoodSearchViewModel @Inject constructor(
-    private val foodRepository: FoodRepository
+    private val usdaRepository: USDARepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FoodSearchUiState())
     val uiState: StateFlow<FoodSearchUiState> = _uiState.asStateFlow()
+    
+    // USDA API Key (in production this should be in BuildConfig or secure storage)
+    private val usdaApiKey = "fCnWsoZ4D22bLKBaEOrmTfGpYhYCV49MWWWGxeHt"
 
     fun setMealType(mealType: String) {
         _uiState.value = _uiState.value.copy(mealType = mealType)
@@ -34,7 +36,7 @@ class FoodSearchViewModel @Inject constructor(
 
     fun updateSearchQuery(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
-        if (query.isNotBlank() && query.length >= 2) {
+        if (query.isNotBlank() && query.length >= 3) {
             searchFoods(query)
         } else {
             _uiState.value = _uiState.value.copy(searchResults = emptyList())
@@ -49,12 +51,12 @@ class FoodSearchViewModel @Inject constructor(
                     errorMessage = null
                 )
 
-                foodRepository.searchFoods(query).collectLatest { foods ->
-                    _uiState.value = _uiState.value.copy(
-                        searchResults = foods,
-                        isLoading = false
-                    )
-                }
+                val foods = usdaRepository.searchFoodsByName(query, usdaApiKey)
+                
+                _uiState.value = _uiState.value.copy(
+                    searchResults = foods,
+                    isLoading = false
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,

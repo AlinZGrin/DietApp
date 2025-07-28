@@ -2,6 +2,7 @@ package com.dietapp.di
 
 import com.dietapp.auth.AuthRepository
 import com.dietapp.data.api.OpenFoodFactsApiService
+import com.dietapp.data.api.USDAApiService
 import com.dietapp.data.dao.*
 import com.dietapp.data.repository.*
 import com.google.firebase.firestore.FirebaseFirestore
@@ -12,6 +13,7 @@ import dagger.hilt.components.SingletonComponent
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
+import javax.inject.Named
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -79,13 +81,35 @@ object RepositoryModule {
 
     @Provides
     @Singleton
+    @Named("USDA")
+    fun provideUSDARetrofit(): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.nal.usda.gov/fdc/v1/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    @Provides
+    @Singleton
     fun provideOpenFoodFactsApiService(retrofit: Retrofit): OpenFoodFactsApiService {
         return retrofit.create(OpenFoodFactsApiService::class.java)
     }
 
     @Provides
     @Singleton
+    fun provideUSDAApiService(@Named("USDA") retrofit: Retrofit): USDAApiService {
+        return retrofit.create(USDAApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideOpenFoodFactsRepository(openFoodFactsApiService: OpenFoodFactsApiService): OpenFoodFactsRepository {
         return OpenFoodFactsRepository(openFoodFactsApiService)
+    }
+
+    @Provides
+    @Singleton
+    fun provideUSDARepository(usdaApiService: USDAApiService): USDARepository {
+        return USDARepository(usdaApiService)
     }
 }

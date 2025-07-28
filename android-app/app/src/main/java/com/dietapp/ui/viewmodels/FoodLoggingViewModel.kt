@@ -208,7 +208,9 @@ class FoodLoggingViewModel @Inject constructor(
                 )
             }
         }
-    }    fun clearError() {
+    }
+
+    fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
 

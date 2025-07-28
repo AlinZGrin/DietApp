@@ -117,8 +117,18 @@ fun DietAppNavigation() {
                     navController.popBackStack()
                 },
                 onFoodSelected = { food: com.dietapp.data.entities.Food, selectedMealType: String ->
-                    // Set result in the saved state handle for the previous destination
-                    navController.previousBackStackEntry?.savedStateHandle?.set("selected_food", food)
+                    // Pass food data as individual values since Food entity is not Parcelable
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_id", food.id)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_name", food.name)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_brand", food.brand)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_calories", food.calories)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_protein", food.protein)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_carbs", food.carbs)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_fat", food.fat)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_fiber", food.fiber)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_sugar", food.sugar)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_serving_size", food.servingSize)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("food_serving_unit", food.servingUnit)
                     navController.previousBackStackEntry?.savedStateHandle?.set("selected_meal_type", selectedMealType)
                     navController.popBackStack()
                 }

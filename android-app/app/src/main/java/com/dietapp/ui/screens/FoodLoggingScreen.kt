@@ -39,13 +39,39 @@ fun FoodLoggingScreen(
     // Handle food selection result
     LaunchedEffect(savedStateHandle) {
         savedStateHandle?.let { handle ->
-            val selectedFood = handle.get<com.dietapp.data.entities.Food>("selected_food")
+            val foodId = handle.get<String>("food_id")
             val selectedMealType = handle.get<String>("selected_meal_type")
 
-            if (selectedFood != null && selectedMealType != null) {
+            if (foodId != null && selectedMealType != null) {
+                // Reconstruct Food object from individual values
+                val selectedFood = com.dietapp.data.entities.Food(
+                    id = foodId,
+                    name = handle.get<String>("food_name") ?: "",
+                    brand = handle.get<String>("food_brand"),
+                    calories = handle.get<Double>("food_calories") ?: 0.0,
+                    protein = handle.get<Double>("food_protein") ?: 0.0,
+                    carbs = handle.get<Double>("food_carbs") ?: 0.0,
+                    fat = handle.get<Double>("food_fat") ?: 0.0,
+                    fiber = handle.get<Double>("food_fiber"),
+                    sugar = handle.get<Double>("food_sugar"),
+                    servingSize = handle.get<Double>("food_serving_size"),
+                    servingUnit = handle.get<String>("food_serving_unit")
+                )
+
                 viewModel.addFoodToLog(selectedFood, selectedMealType)
-                // Clear the result to prevent re-adding
-                handle.remove<com.dietapp.data.entities.Food>("selected_food")
+                
+                // Clear all the result values to prevent re-adding
+                handle.remove<String>("food_id")
+                handle.remove<String>("food_name")
+                handle.remove<String>("food_brand")
+                handle.remove<Double>("food_calories")
+                handle.remove<Double>("food_protein")
+                handle.remove<Double>("food_carbs")
+                handle.remove<Double>("food_fat")
+                handle.remove<Double>("food_fiber")
+                handle.remove<Double>("food_sugar")
+                handle.remove<Double>("food_serving_size")
+                handle.remove<String>("food_serving_unit")
                 handle.remove<String>("selected_meal_type")
             }
         }
