@@ -1,0 +1,28 @@
+{
+    "workbench.colorTheme": "Default Dark+",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": true,
+    "editor.trimAutoWhitespace": true,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit",
+        "source.organizeImports": "explicit"
+    },
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000,
+    "explorer.confirmDelete": false,
+    "explorer.confirmDragAndDrop": false,
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "kotlin.languageServer.enabled": true,
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.gradle.buildServer.enabled": "on",
+    "android.enabledLinting": true,
+    "android.home": "${env:ANDROID_HOME}",
+    "gradle.nestedProjects": true
+}

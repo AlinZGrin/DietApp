@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DietApp</string>
+
+    <!-- Navigation -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_weight">Weight</string>
+    <string name="nav_food_log">Food Log</string>
+    <string name="nav_meals">Meals</string>
+    <string name="nav_profile">Profile</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_greeting_morning">Good morning!</string>
+    <string name="dashboard_greeting_afternoon">Good afternoon!</string>
+    <string name="dashboard_greeting_evening">Good evening!</string>
+    <string name="dashboard_greeting_night">Good night!</string>
+    <string name="dashboard_todays_progress">Today\'s Progress</string>
+    <string name="dashboard_quick_actions">Quick Actions</string>
+
+    <!-- Weight Tracking -->
+    <string name="weight_log_weight">Log Weight</string>
+    <string name="weight_current">Current Weight</string>
+    <string name="weight_target">Target Weight</string>
+    <string name="weight_weekly_change">Weekly Change</string>
+
+    <!-- Food Logging -->
+    <string name="food_search_hint">Search for food items...</string>
+    <string name="food_add_item">Add Food Item</string>
+    <string name="food_calories">Calories</string>
+    <string name="food_protein">Protein</string>
+    <string name="food_carbs">Carbs</string>
+    <string name="food_fat">Fat</string>
+    <string name="food_fiber">Fiber</string>
+
+    <!-- Meals -->
+    <string name="meals_suggested">Suggested Meals</string>
+    <string name="meals_breakfast">Breakfast</string>
+    <string name="meals_lunch">Lunch</string>
+    <string name="meals_dinner">Dinner</string>
+    <string name="meals_snack">Snack</string>
+
+    <!-- Profile -->
+    <string name="profile_personal_info">Personal Information</string>
+    <string name="profile_goals">Goals</string>
+    <string name="profile_preferences">Dietary Preferences</string>
+    <string name="profile_settings">Settings</string>
+
+    <!-- Common -->
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="loading">Loading...</string>
+    <string name="error">Error</string>
+    <string name="retry">Retry</string>
+
+    <!-- Units -->
+    <string name="unit_kg">kg</string>
+    <string name="unit_lbs">lbs</string>
+    <string name="unit_cm">cm</string>
+    <string name="unit_ft">ft</string>
+    <string name="unit_kcal">kcal</string>
+    <string name="unit_g">g</string>
+    <string name="unit_mg">mg</string>
+</resources>
