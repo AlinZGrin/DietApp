@@ -111,4 +111,34 @@ class AuthRepository @Inject constructor() {
     fun getCurrentUser(): FirebaseUser? {
         return firebaseAuth.currentUser
     }
+
+    fun getCurrentUserDisplayName(): String? {
+        return firebaseAuth.currentUser?.displayName
+    }
+
+    fun getCurrentUserFirstName(): String {
+        val user = firebaseAuth.currentUser
+        // Try display name first
+        user?.displayName?.let { displayName ->
+            // If display name exists, try to extract first name
+            val firstName = displayName.split(" ").firstOrNull()
+            if (!firstName.isNullOrBlank()) {
+                return firstName
+            }
+        }
+
+        // Fallback to email username
+        user?.email?.let { email ->
+            val emailUsername = email.substringBefore("@")
+            if (emailUsername.isNotBlank()) {
+                // Capitalize first letter
+                return emailUsername.replaceFirstChar {
+                    if (it.isLowerCase()) it.titlecase() else it.toString()
+                }
+            }
+        }
+
+        // Final fallback
+        return "User"
+    }
 }

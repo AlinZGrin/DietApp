@@ -75,6 +75,21 @@ class DashboardViewModel @Inject constructor(
                 // If no profile exists, create a default one
                 val profile = userProfile ?: createDefaultProfile(userId)
 
+                // Check if we need to update the profile name from default "User"
+                val updatedProfile = if (profile.name == "User") {
+                    val actualName = authRepository.getCurrentUserFirstName()
+                    if (actualName != "User") {
+                        // Update the profile with the actual name
+                        val newProfile = profile.copy(name = actualName, updatedAt = Date())
+                        userRepository.updateUserProfile(newProfile)
+                        newProfile
+                    } else {
+                        profile
+                    }
+                } else {
+                    profile
+                }
+
                 // Load weight trend and motivational tip (these don't change often)
                 val weightTrend = loadWeightTrend(userId)
                 val motivationalTip = getMotivationalTip()
@@ -95,15 +110,15 @@ class DashboardViewModel @Inject constructor(
                         totalCarbs = totalCarbs,
                         totalFat = totalFat,
                         totalCaloriesBurned = 0.0, // TODO: Implement exercise tracking
-                        goalCalories = profile.dailyCalorieGoal,
-                        goalProtein = profile.dailyProteinGoal,
-                        goalCarbs = profile.dailyCarbGoal,
-                        goalFat = profile.dailyFatGoal
+                        goalCalories = updatedProfile.dailyCalorieGoal,
+                        goalProtein = updatedProfile.dailyProteinGoal,
+                        goalCarbs = updatedProfile.dailyCarbGoal,
+                        goalFat = updatedProfile.dailyFatGoal
                     )
 
                     _uiState.value = DashboardUiState(
                         isLoading = false,
-                        userProfile = profile,
+                        userProfile = updatedProfile,
                         dailySummary = dailySummary,
                         weightTrend = weightTrend,
                         motivationalTip = motivationalTip
@@ -121,7 +136,7 @@ class DashboardViewModel @Inject constructor(
     private suspend fun createDefaultProfile(userId: String): com.dietapp.data.entities.UserProfile {
         val defaultProfile = com.dietapp.data.entities.UserProfile(
             userId = userId,
-            name = "User",
+            name = authRepository.getCurrentUserFirstName(), // Use actual user name
             email = authRepository.getCurrentUserEmail() ?: "user@example.com",
             age = 30,
             gender = "Other",
