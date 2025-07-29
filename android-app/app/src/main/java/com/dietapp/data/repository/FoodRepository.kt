@@ -274,26 +274,61 @@ class FoodRepository @Inject constructor(
     fun getFoodLogsInRange(userId: String, startDate: Date, endDate: Date): Flow<List<FoodLog>> = callbackFlow {
         val listener = firestore.collection("foodLogs")
             .whereEqualTo("userId", userId)
-            .whereGreaterThanOrEqualTo("date", startDate)
-            .whereLessThanOrEqualTo("date", endDate)
-            .orderBy("date", Query.Direction.ASCENDING)
+            .whereGreaterThanOrEqualTo("date", com.google.firebase.Timestamp(startDate))
+            .whereLessThanOrEqualTo("date", com.google.firebase.Timestamp(endDate))
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("DEBUG FoodRepository: Error getting food logs in range from Firebase: ${error.message}")
-                    close(error)
+                    println("FoodRepository: Error getting food logs in range: ${error.message}")
+                    // Send empty list instead of closing to prevent app crash
+                    trySend(emptyList())
                     return@addSnapshotListener
                 }
 
                 val logs = snapshot?.documents?.mapNotNull { doc ->
                     try {
-                        doc.toObject(FoodLog::class.java)?.copy(id = doc.id.hashCode().toLong())
+                        val data = doc.data
+                        if (data != null) {
+                            val userId = data["userId"] as? String
+                            val foodId = data["foodId"] as? String
+                            val quantity = data["quantity"] as? Double
+                            val unit = data["unit"] as? String
+                            val calories = data["calories"] as? Double
+                            val protein = data["protein"] as? Double
+                            val carbs = data["carbs"] as? Double
+                            val fat = data["fat"] as? Double
+                            val mealType = data["mealType"] as? String
+
+                            val dateTimestamp = data["date"] as? com.google.firebase.Timestamp
+                            val createdAtTimestamp = data["createdAt"] as? com.google.firebase.Timestamp
+                            val date = dateTimestamp?.toDate() ?: Date()
+                            val createdAt = createdAtTimestamp?.toDate() ?: Date()
+
+                            if (userId != null && foodId != null) {
+                                FoodLog(
+                                    id = doc.id.hashCode().toLong(),
+                                    userId = userId,
+                                    foodId = foodId,
+                                    quantity = quantity ?: 1.0,
+                                    unit = unit ?: "g",
+                                    mealType = mealType ?: "snack",
+                                    date = date,
+                                    calories = calories ?: 0.0,
+                                    protein = protein ?: 0.0,
+                                    carbs = carbs ?: 0.0,
+                                    fat = fat ?: 0.0,
+                                    createdAt = createdAt
+                                )
+                            } else null
+                        } else null
                     } catch (e: Exception) {
-                        println("DEBUG FoodRepository: Error parsing food log: ${e.message}")
+                        println("FoodRepository: Error parsing food log in range: ${e.message}")
                         null
                     }
                 } ?: emptyList()
 
-                trySend(logs)
+                // Sort by date in the app instead of using orderBy in Firestore
+                val sortedLogs = logs.sortedBy { it.date }
+                trySend(sortedLogs)
             }
 
         awaitClose { listener.remove() }

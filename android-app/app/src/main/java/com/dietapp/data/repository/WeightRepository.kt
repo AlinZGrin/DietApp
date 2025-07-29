@@ -115,8 +115,63 @@ class WeightRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
-    fun getWeightEntriesInRange(userId: String, startDate: Date, endDate: Date): Flow<List<WeightEntry>> =
-        weightDao.getWeightEntriesInRange(userId, startDate, endDate)
+    fun getWeightEntriesInRange(userId: String, startDate: Date, endDate: Date): Flow<List<WeightEntry>> = callbackFlow {
+        val listener = firestore.collection("weightEntries")
+            .whereEqualTo("userId", userId)
+            .whereGreaterThanOrEqualTo("date", com.google.firebase.Timestamp(startDate))
+            .whereLessThanOrEqualTo("date", com.google.firebase.Timestamp(endDate))
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("WeightRepository: Error getting weight entries in range: ${error.message}")
+                    // Fallback to local database by sending empty list for now
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
+                val entries = snapshot?.documents?.mapNotNull { doc ->
+                    try {
+                        val data = doc.data
+                        if (data != null) {
+                            val userId = data["userId"] as? String
+                            val weight = data["weight"] as? Double
+                            val bodyFatPercentage = data["bodyFatPercentage"] as? Double
+                            val muscleMass = data["muscleMass"] as? Double
+                            val notes = data["notes"] as? String
+
+                            val dateTimestamp = data["date"] as? com.google.firebase.Timestamp
+                            val createdAtTimestamp = data["createdAt"] as? com.google.firebase.Timestamp
+
+                            val date = dateTimestamp?.toDate() ?: Date()
+                            val createdAt = createdAtTimestamp?.toDate() ?: Date()
+
+                            if (userId != null && weight != null) {
+                                WeightEntry(
+                                    id = doc.id.hashCode().toLong(),
+                                    userId = userId,
+                                    weight = weight,
+                                    bodyFatPercentage = bodyFatPercentage,
+                                    muscleMass = muscleMass,
+                                    date = date,
+                                    notes = notes,
+                                    createdAt = createdAt
+                                )
+                            } else null
+                        } else null
+                    } catch (e: Exception) {
+                        println("WeightRepository: Error parsing weight entry in range: ${e.message}")
+                        null
+                    }
+                } ?: emptyList()
+
+                // Sort by date descending (most recent first)
+                val sortedEntries = entries.sortedByDescending { it.date }
+                trySend(sortedEntries)
+            }
+
+        awaitClose {
+            listener.remove()
+        }
+    }
 
     suspend fun insertWeightEntry(weightEntry: WeightEntry): Long {
         try {

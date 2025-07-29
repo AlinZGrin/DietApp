@@ -54,8 +54,25 @@ class ChartsViewModel @Inject constructor(
     fun loadChartData() {
         viewModelScope.launch {
             authState.collect { state ->
-                if (state is AuthState.Authenticated) {
-                    loadData(state.userId)
+                when (state) {
+                    is AuthState.Authenticated -> {
+                        loadData(state.userId)
+                    }
+                    is AuthState.Unauthenticated -> {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "Please sign in to view charts"
+                        )
+                    }
+                    is AuthState.Loading -> {
+                        _uiState.value = _uiState.value.copy(isLoading = true)
+                    }
+                    is AuthState.Error -> {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = state.message
+                        )
+                    }
                 }
             }
         }
@@ -82,92 +99,90 @@ class ChartsViewModel @Inject constructor(
 
             val dateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
 
-            // Collect weight data from repository
-            var weightData: List<Pair<String, Float>> = emptyList()
-            var calorieData: List<Pair<String, Float>> = emptyList()
-            var nutritionBreakdown: Map<String, Float> = emptyMap()
-
-            try {
-                // Get weight entries for the period
-                weightRepository.getWeightEntriesInRange(userId, startDate, endDate)
-                    .collect { weightEntries ->
-                        weightData = weightEntries.map { entry ->
-                            val dateStr = dateFormat.format(entry.date)
-                            Pair(dateStr, entry.weight.toFloat())
-                        }.sortedBy { it.first }
-                    }
-
-                // Get food logs for calorie data
+            // Use combine to collect both weight and food data together
+            combine(
+                weightRepository.getWeightEntriesInRange(userId, startDate, endDate),
                 foodRepository.getFoodLogsInRange(userId, startDate, endDate)
-                    .collect { foodLogs ->
-                        // Group by date and sum calories
-                        val caloriesByDate = foodLogs.groupBy { log ->
-                            dateFormat.format(log.date)
-                        }.mapValues { (_, logs) ->
-                            logs.sumOf { log -> log.calories }.toFloat()
-                        }
+            ) { weightEntries, foodLogs ->
+                // Process weight data
+                val weightData = weightEntries.map { entry ->
+                    val dateStr = dateFormat.format(entry.date)
+                    Pair(dateStr, entry.weight.toFloat())
+                }.sortedBy { it.first }
 
-                        calorieData = caloriesByDate.toList().sortedBy { it.first }
+                // Process calorie data
+                val caloriesByDate = foodLogs.groupBy { log ->
+                    dateFormat.format(log.date)
+                }.mapValues { (_, logs) ->
+                    logs.sumOf { log -> log.calories }.toFloat()
+                }
+                val calorieData = caloriesByDate.toList().sortedBy { it.first }
 
-                        // Calculate nutrition breakdown from recent logs
-                        val totalCalories = foodLogs.sumOf { it.calories }
-                        val totalProtein = foodLogs.sumOf { it.protein }
-                        val totalCarbs = foodLogs.sumOf { it.carbs }
-                        val totalFat = foodLogs.sumOf { it.fat }
+                // Calculate nutrition breakdown from recent logs
+                val totalCalories = foodLogs.sumOf { it.calories }
+                val totalProtein = foodLogs.sumOf { it.protein }
+                val totalCarbs = foodLogs.sumOf { it.carbs }
+                val totalFat = foodLogs.sumOf { it.fat }
 
-                        if (totalCalories > 0) {
-                            nutritionBreakdown = mapOf(
-                                "Protein" to (totalProtein * 4 / totalCalories * 100).toFloat(),
-                                "Carbs" to (totalCarbs * 4 / totalCalories * 100).toFloat(),
-                                "Fat" to (totalFat * 9 / totalCalories * 100).toFloat()
-                            )
-                        } else {
-                            // Use default percentages if no data
-                            nutritionBreakdown = mapOf(
-                                "Protein" to 25f,
-                                "Carbs" to 45f,
-                                "Fat" to 30f
-                            )
-                        }
-                    }
-            } catch (e: Exception) {
-                println("DEBUG ChartsViewModel: Error loading data from Firebase: ${e.message}")
-                // Fall back to empty data or mock data
-                weightData = emptyList()
-                calorieData = emptyList()
-                nutritionBreakdown = mapOf(
-                    "Protein" to 25f,
-                    "Carbs" to 45f,
-                    "Fat" to 30f
+                val nutritionBreakdown = if (totalCalories > 0) {
+                    mapOf(
+                        "Protein" to (totalProtein * 4 / totalCalories * 100).toFloat(),
+                        "Carbs" to (totalCarbs * 4 / totalCalories * 100).toFloat(),
+                        "Fat" to (totalFat * 9 / totalCalories * 100).toFloat()
+                    )
+                } else {
+                    // Use default percentages if no data
+                    mapOf(
+                        "Protein" to 25f,
+                        "Carbs" to 45f,
+                        "Fat" to 30f
+                    )
+                }
+
+                // Calculate averages
+                val avgCalories = if (calorieData.isNotEmpty()) {
+                    calorieData.map { it.second }.average().toFloat()
+                } else 0f
+
+                val avgProtein = avgCalories * 0.25f / 4f // 25% of calories from protein
+                val avgCarbs = avgCalories * 0.45f / 4f // 45% of calories from carbs
+                val avgFat = avgCalories * 0.30f / 9f // 30% of calories from fat
+
+                // Calculate weight change
+                val weightChange = if (weightData.size >= 2) {
+                    weightData.last().second - weightData.first().second
+                } else 0f
+
+                // Return the complete UI state
+                val finalState = _uiState.value.copy(
+                    isLoading = false,
+                    weightData = weightData,
+                    calorieData = calorieData,
+                    nutritionBreakdown = nutritionBreakdown,
+                    averageCalories = avgCalories,
+                    averageProtein = avgProtein,
+                    averageCarbs = avgCarbs,
+                    averageFat = avgFat,
+                    weightChange = weightChange,
+                    error = null
                 )
+
+                // If there's no data, provide some sample data to show the UI structure
+                if (weightData.isEmpty() && calorieData.isEmpty()) {
+                    val sampleState = finalState.copy(
+                        error = "No data available yet. Add some weight entries and food logs to see your progress!"
+                    )
+                    sampleState
+                } else {
+                    finalState
+                }
+            }.collect { newState ->
+                _uiState.value = newState
             }
 
-            // Calculate averages
-            val avgCalories = if (calorieData.isNotEmpty()) {
-                calorieData.map { it.second }.average().toFloat()
-            } else 0f
-
-            val avgProtein = avgCalories * 0.25f / 4f // 25% of calories from protein
-            val avgCarbs = avgCalories * 0.45f / 4f // 45% of calories from carbs
-            val avgFat = avgCalories * 0.30f / 9f // 30% of calories from fat
-
-            // Calculate weight change
-            val weightChange = if (weightData.size >= 2) {
-                weightData.last().second - weightData.first().second
-            } else 0f
-
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                weightData = weightData,
-                calorieData = calorieData,
-                nutritionBreakdown = nutritionBreakdown,
-                averageCalories = avgCalories,
-                averageProtein = avgProtein,
-                averageCarbs = avgCarbs,
-                averageFat = avgFat,
-                weightChange = weightChange
-            )
         } catch (e: Exception) {
+            println("ChartsViewModel: Error loading chart data: ${e.message}")
+            e.printStackTrace()
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
                 error = e.message ?: "Failed to load chart data"
