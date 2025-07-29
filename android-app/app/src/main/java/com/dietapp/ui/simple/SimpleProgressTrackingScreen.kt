@@ -42,6 +42,14 @@ fun SimpleProgressTrackingScreen(
                     }
                 },
                 actions = {
+                    // 🚨 TEMPORARY: Emergency database cleanup button
+                    IconButton(onClick = { viewModel.nukeDatabaseEmergency() }) {
+                        Icon(
+                            Icons.Default.DeleteForever,
+                            contentDescription = "Emergency DB Cleanup",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                     IconButton(onClick = { viewModel.toggleUnits() }) {
                         Icon(
                             Icons.Default.Sync,

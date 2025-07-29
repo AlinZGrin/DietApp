@@ -232,8 +232,87 @@ class WeightRepository @Inject constructor(
     suspend fun deleteWeightEntry(weightEntry: WeightEntry) =
         weightDao.deleteWeightEntry(weightEntry)
 
+    suspend fun deleteAllWeightEntries(userId: String): Int {
+        println("DEBUG WeightRepository: deleteAllWeightEntries called for user $userId")
+        val deletedCount = weightDao.deleteAllWeightEntries(userId)
+        println("DEBUG WeightRepository: deleted $deletedCount weight entries for user $userId from Room")
+        return deletedCount
+    }
+
+    suspend fun deleteAllWeightEntriesWithFirestore(userId: String): Int {
+        println("DEBUG WeightRepository: deleteAllWeightEntriesWithFirestore called for user $userId")
+
+        try {
+            // Delete from Firestore first
+            val firestoreQuery = firestore.collection("weightEntries")
+                .whereEqualTo("userId", userId)
+
+            val querySnapshot = firestoreQuery.get().await()
+            println("DEBUG WeightRepository: Found ${querySnapshot.documents.size} Firestore documents for user $userId")
+
+            val firestoreDeletions = querySnapshot.documents.map { document ->
+                document.reference.delete()
+            }
+
+            // Wait for all Firestore deletions to complete
+            firestoreDeletions.forEach { it.await() }
+            println("DEBUG WeightRepository: Deleted ${firestoreDeletions.size} documents from Firestore")
+
+            // Then delete from Room
+            val roomDeletions = weightDao.deleteAllWeightEntries(userId)
+            println("DEBUG WeightRepository: Deleted $roomDeletions entries from Room")
+
+            return firestoreDeletions.size + roomDeletions
+        } catch (e: Exception) {
+            println("DEBUG WeightRepository: Error deleting from Firestore: ${e.message}")
+            e.printStackTrace()
+            // Fallback to Room-only deletion
+            return weightDao.deleteAllWeightEntries(userId)
+        }
+    }
+
+    suspend fun deleteAllWeightEntriesGlobal(): Int {
+        println("DEBUG WeightRepository: deleteAllWeightEntriesGlobal called")
+        val deletedCount = weightDao.deleteAllWeightEntriesGlobal()
+        println("DEBUG WeightRepository: deleted $deletedCount weight entries globally from Room")
+        return deletedCount
+    }
+
+    suspend fun deleteAllWeightEntriesGlobalWithFirestore(): Int {
+        println("DEBUG WeightRepository: deleteAllWeightEntriesGlobalWithFirestore called")
+
+        try {
+            // Delete all from Firestore
+            val firestoreQuery = firestore.collection("weightEntries")
+            val querySnapshot = firestoreQuery.get().await()
+            println("DEBUG WeightRepository: Found ${querySnapshot.documents.size} total Firestore documents")
+
+            val firestoreDeletions = querySnapshot.documents.map { document ->
+                document.reference.delete()
+            }
+
+            // Wait for all Firestore deletions to complete
+            firestoreDeletions.forEach { it.await() }
+            println("DEBUG WeightRepository: Deleted ${firestoreDeletions.size} documents from Firestore")
+
+            // Then delete all from Room
+            val roomDeletions = weightDao.deleteAllWeightEntriesGlobal()
+            println("DEBUG WeightRepository: Deleted $roomDeletions entries from Room")
+
+            return firestoreDeletions.size + roomDeletions
+        } catch (e: Exception) {
+            println("DEBUG WeightRepository: Error deleting from Firestore: ${e.message}")
+            e.printStackTrace()
+            // Fallback to Room-only deletion
+            return weightDao.deleteAllWeightEntriesGlobal()
+        }
+    }
+
     suspend fun getAverageWeightSince(userId: String, startDate: Date): Double? =
         weightDao.getAverageWeightSince(userId, startDate)
+
+    suspend fun getAllWeightEntriesDebug(): List<WeightEntry> =
+        weightDao.getAllWeightEntriesDebug()
 
     /**
      * Calculate weight progress for the given period

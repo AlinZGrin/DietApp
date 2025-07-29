@@ -25,6 +25,15 @@ interface WeightDao {
     @Delete
     suspend fun deleteWeightEntry(weightEntry: WeightEntry)
 
+    @Query("DELETE FROM weight_entries WHERE userId = :userId")
+    suspend fun deleteAllWeightEntries(userId: String): Int
+
+    @Query("DELETE FROM weight_entries")
+    suspend fun deleteAllWeightEntriesGlobal(): Int
+
+    @Query("SELECT * FROM weight_entries ORDER BY date DESC")
+    suspend fun getAllWeightEntriesDebug(): List<WeightEntry>
+
     @Query("SELECT AVG(weight) FROM weight_entries WHERE userId = :userId AND date >= :startDate")
     suspend fun getAverageWeightSince(userId: String, startDate: Date): Double?
 }

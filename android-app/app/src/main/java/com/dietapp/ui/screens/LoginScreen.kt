@@ -131,6 +131,17 @@ fun LoginScreen(
             }
         }
 
+        // Forgot Password Button (only show in sign-in mode)
+        if (!uiState.isSignUpMode) {
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(
+                onClick = viewModel::showForgotPassword,
+                enabled = !uiState.isLoading
+            ) {
+                Text("Forgot Password?")
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // Toggle between Sign In and Sign Up
@@ -240,5 +251,78 @@ fun LoginScreen(
                 )
             }
         }
+    }
+
+    // Forgot Password Dialog
+    if (uiState.showForgotPassword) {
+        AlertDialog(
+            onDismissRequest = { viewModel.hideForgotPassword() },
+            title = {
+                Text("Reset Password")
+            },
+            text = {
+                Column {
+                    if (uiState.passwordResetSent) {
+                        Text(
+                            "Password reset email sent! Check your inbox and follow the instructions to reset your password.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+                        Text(
+                            "Enter your email address and we'll send you instructions to reset your password.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedTextField(
+                            value = uiState.email,
+                            onValueChange = viewModel::updateEmail,
+                            label = { Text("Email") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Done
+                            ),
+                            leadingIcon = {
+                                Icon(Icons.Default.Email, contentDescription = null)
+                            },
+                            enabled = !uiState.isSendingPasswordReset
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (uiState.passwordResetSent) {
+                    TextButton(
+                        onClick = { viewModel.hideForgotPassword() }
+                    ) {
+                        Text("OK")
+                    }
+                } else {
+                    TextButton(
+                        onClick = { viewModel.sendPasswordResetEmail() },
+                        enabled = !uiState.isSendingPasswordReset && uiState.email.isNotBlank()
+                    ) {
+                        if (uiState.isSendingPasswordReset) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Send Reset Email")
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                if (!uiState.passwordResetSent) {
+                    TextButton(
+                        onClick = { viewModel.hideForgotPassword() },
+                        enabled = !uiState.isSendingPasswordReset
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        )
     }
 }

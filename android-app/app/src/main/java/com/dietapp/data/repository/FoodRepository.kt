@@ -333,4 +333,26 @@ class FoodRepository @Inject constructor(
 
         awaitClose { listener.remove() }
     }
+
+    suspend fun deleteAllFoodLogs(userId: String) {
+        try {
+            // Delete from Firebase
+            val querySnapshot = firestore.collection("foodLogs")
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+
+            querySnapshot.documents.forEach { document ->
+                document.reference.delete().await()
+            }
+            println("DEBUG FoodRepository: Deleted all food logs from Firebase for user $userId")
+
+            // Also delete from local database
+            foodLogDao.deleteAllFoodLogs(userId)
+        } catch (e: Exception) {
+            println("DEBUG FoodRepository: Error deleting all food logs from Firebase: ${e.message}")
+            // Fallback to local database only
+            foodLogDao.deleteAllFoodLogs(userId)
+        }
+    }
 }

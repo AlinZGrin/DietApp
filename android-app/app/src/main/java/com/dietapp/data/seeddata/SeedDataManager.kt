@@ -42,7 +42,7 @@ class SeedDataManager @Inject constructor(
                 seedSampleGoal(userId)
 
                 // Seed sample weight entries
-                seedSampleWeightEntries(userId)
+                // TEMPORARILY DISABLED: seedSampleWeightEntries(userId)
 
                 // Seed sample water intake for today
                 seedSampleWaterIntake(userId)

@@ -1,5 +1,7 @@
 package com.dietapp.ui.simple
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -198,8 +200,12 @@ fun SimpleFoodLoggingScreen(
 @Composable
 fun SimpleProfileScreen(
     onNavigateBack: () -> Unit = {},
-    onSignOut: () -> Unit = {}
+    onSignOut: () -> Unit = {},
+    viewModel: com.dietapp.ui.viewmodels.ProfileViewModel = hiltViewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showSignOutDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -208,127 +214,278 @@ fun SimpleProfileScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    IconButton(onClick = { showSignOutDialog = true }) {
+                        Icon(
+                            Icons.Default.ExitToApp,
+                            contentDescription = "Sign Out",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-        ) {
-            // Profile header
-            Card(
-                modifier = Modifier.fillMaxWidth()
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = "Profile",
-                        modifier = Modifier.size(80.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Your Name",
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                    Text(
-                        text = "user@email.com",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
+                CircularProgressIndicator()
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Settings options
-            Card(
-                modifier = Modifier.fillMaxWidth()
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
+                // Profile header
+                Card(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Settings",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    SettingsItem(
-                        icon = Icons.Default.Person,
-                        title = "Edit Profile",
-                        subtitle = "Update your personal information"
-                    )
-
-                    SettingsItem(
-                        icon = Icons.Default.Settings,
-                        title = "Preferences",
-                        subtitle = "Units, notifications, and more"
-                    )
-
-                    SettingsItem(
-                        icon = Icons.Default.Notifications,
-                        title = "Notifications",
-                        subtitle = "Manage your notification settings"
-                    )
-
-                    SettingsItem(
-                        icon = Icons.Default.Security,
-                        title = "Privacy & Security",
-                        subtitle = "Control your data and privacy"
-                    )
+                    Column(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = "Profile",
+                            modifier = Modifier.size(80.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = uiState.userProfile?.name ?: "Loading...",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                        Text(
+                            text = uiState.userProfile?.email ?: "Loading...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Account actions
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
+                // Quick Stats (if profile exists)
+                uiState.userProfile?.let { profile ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Quick Stats",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                QuickStatItem(
+                                    "Current",
+                                    "${uiState.currentWeight?.let { "%.1f".format(it) } ?: "N/A"} kg"
+                                )
+                                QuickStatItem("Target", "${profile.targetWeight} kg")
+                                QuickStatItem("Goal", "${profile.dailyCalorieGoal} cal")
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // Settings options
+                Card(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Account",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Settings",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    SettingsItem(
-                        icon = Icons.Default.Sync,
-                        title = "Sync Data",
-                        subtitle = "Sync with Firebase cloud"
-                    )
+                        ClickableSettingsItem(
+                            icon = Icons.Default.Person,
+                            title = "Edit Profile",
+                            subtitle = "Update your personal information",
+                            onClick = { viewModel.toggleEditMode() }
+                        )
 
-                    SettingsItem(
-                        icon = Icons.Default.Download,
-                        title = "Export Data",
-                        subtitle = "Download your data"
-                    )
+                        SettingsItem(
+                            icon = Icons.Default.Settings,
+                            title = "Preferences",
+                            subtitle = "Units, notifications, and more"
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Notifications,
+                            title = "Notifications",
+                            subtitle = "Manage your notification settings"
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Security,
+                            title = "Privacy & Security",
+                            subtitle = "Control your data and privacy"
+                        )
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
-                onClick = onSignOut,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Text("Sign Out")
+                // Account actions
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Account",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        SettingsItem(
+                            icon = Icons.Default.Sync,
+                            title = "Sync Data",
+                            subtitle = "Sync with Firebase cloud"
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Download,
+                            title = "Export Data",
+                            subtitle = "Download your data"
+                        )
+
+                        uiState.userProfile?.let { profile ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Member since ${java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault()).format(profile.createdAt)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                }
             }
         }
+
+        // Sign out confirmation dialog
+        if (showSignOutDialog) {
+            AlertDialog(
+                onDismissRequest = { showSignOutDialog = false },
+                title = { Text("Sign Out") },
+                text = { Text("Are you sure you want to sign out?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showSignOutDialog = false
+                            viewModel.signOut()
+                            onSignOut()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Sign Out", color = MaterialTheme.colorScheme.onError)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSignOutDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Edit Profile Dialog (fullscreen modal)
+        if (uiState.isEditing && uiState.userProfile != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                com.dietapp.ui.profile.ProfileScreen(
+                    onNavigateToLogin = onSignOut
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickStatItem(
+    label: String,
+    value: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+    }
+}
+
+@Composable
+private fun ClickableSettingsItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = title,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = "Navigate",
+            tint = MaterialTheme.colorScheme.outline
+        )
     }
 }
 

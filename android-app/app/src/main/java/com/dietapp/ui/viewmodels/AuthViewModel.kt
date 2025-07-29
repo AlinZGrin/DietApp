@@ -14,6 +14,9 @@ data class LoginUiState(
     val email: String = "",
     val password: String = "",
     val isSignUpMode: Boolean = false,
+    val showForgotPassword: Boolean = false,
+    val isSendingPasswordReset: Boolean = false,
+    val passwordResetSent: Boolean = false,
     val error: String? = null
 )
 
@@ -43,8 +46,56 @@ class AuthViewModel @Inject constructor(
     fun toggleSignUpMode() {
         _uiState.value = _uiState.value.copy(
             isSignUpMode = !_uiState.value.isSignUpMode,
-            error = null
+            error = null,
+            showForgotPassword = false,
+            passwordResetSent = false
         )
+    }
+
+    fun showForgotPassword() {
+        _uiState.value = _uiState.value.copy(
+            showForgotPassword = true,
+            error = null,
+            passwordResetSent = false
+        )
+    }
+
+    fun hideForgotPassword() {
+        _uiState.value = _uiState.value.copy(
+            showForgotPassword = false,
+            error = null,
+            passwordResetSent = false
+        )
+    }
+
+    fun sendPasswordResetEmail() {
+        val currentState = _uiState.value
+        if (currentState.email.isBlank()) {
+            _uiState.value = currentState.copy(error = "Please enter your email address")
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = currentState.copy(isSendingPasswordReset = true, error = null)
+
+            val result = authRepository.sendPasswordResetEmail(currentState.email)
+
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isSendingPasswordReset = false,
+                        passwordResetSent = true,
+                        error = null
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isSendingPasswordReset = false,
+                        error = error.message ?: "Failed to send password reset email"
+                    )
+                }
+            )
+        }
     }
 
     fun signIn() {
@@ -105,5 +156,9 @@ class AuthViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    fun clearPasswordResetSent() {
+        _uiState.value = _uiState.value.copy(passwordResetSent = false)
     }
 }

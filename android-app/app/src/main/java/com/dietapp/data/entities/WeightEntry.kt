@@ -8,8 +8,8 @@ import java.util.Date
 data class WeightEntry(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val userId: String,
-    val weight: Double, // in kg
+    val userId: String = "",
+    val weight: Double = 0.0, // in kg
     val bodyFatPercentage: Double? = null,
     val muscleMass: Double? = null,
     val date: Date = Date(),
